@@ -61,7 +61,7 @@ int dht_init()
 
 	//pthreadcreate points to a looping function that needs to be created
 
-	pid = getpid();
+	//pid = getpid();
 	if (pid == 0)
 	{
 		local_init();
