@@ -12,10 +12,14 @@
 
 #include <mpi.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "dht.h"
 
+// Method declarations
 int hash(const char *name);
+void *server_thread(void *ptr);
 
 // Private module variable: current process ID
 static int pid;
@@ -33,6 +37,13 @@ int nprocs;   // number of mpi processes, not sure how diff from mpi_size...
 // Other
 int hash_owner;	// store result from hashing into table
 
+void *server_thread(void *ptr)
+{
+	/// while();
+
+	//pthreadcreate points to a looping function that needs to be created
+}
+
 /*
  * Initialize a new hash table. Returns the current process ID (always zero in
  * the serial version)
@@ -46,6 +57,7 @@ int hash_owner;	// store result from hashing into table
 int dht_init()
 {
 	int provided;
+	pthread_t thread;
 
 	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &provided);
 	if (provided != MPI_THREAD_MULTIPLE)
@@ -57,19 +69,9 @@ int dht_init()
 	MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
-	/// while();
-
-	//pthreadcreate points to a looping function that needs to be created
-
-	//pid = getpid();
-	if (pid == 0)
-	{
-		local_init();
-	}
-	else
-	{
-
-	}
+	pid = getpid();
+	if (pid == 0) local_init();
+	pthread_create(&thread, NULL, (void *)&server_thread, NULL);
 
 	return pid;
 }
