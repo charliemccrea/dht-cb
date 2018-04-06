@@ -28,8 +28,8 @@ static int pid;
 int mpi_rank; // identifier for mpi process
 int mpi_size; // total number of mpi processes
 int nprocs;   // number of mpi processes, not sure how diff from mpi_size...
-
 int hash_owner;	// store result from hashing into table
+bool alive = true;
 
 /*
  * Private module structure: holds data for a single key-value pair
@@ -48,11 +48,6 @@ struct kv_pair_dht {
 static struct kv_pair_dht kv_pairs_dht[MAX_LOCAL_PAIRS];
 
 /*
- * Private module variable: current number of actual key-value pairs
- */
-static size_t pair_count;
-
-/*
  * Server thread
  */
 void *server_thread(void *ptr)
@@ -65,13 +60,32 @@ void *server_thread(void *ptr)
 	MPI_Status status;
 	struct kv_pair_dht receive_pair;
 
-	while (1)
+	while (alive)
 	{
-		if (MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status) == 0)
+		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+
+		switch (receive_pair.type)
 		{
-			dht_put(receive_pair.key, receive_pair.value);
+			case 1: // put
+				local_put(receive_pair.key, receive_pair.value);
+				break;
+
+			case 2: // get
+				break;
+
+			case 3: // sync
+				break;
+
+			case 4: // destroy
+				alive = false;
+				break;
+
+			default:
+				break;
 		}
 	}
+
+	pthread_exit(0);
 }
 
 /*
@@ -98,7 +112,8 @@ int dht_init()
 	pid = getpid();
 	if (pid == 0) local_init();
 	pthread_create(&thread, NULL, (void *)&server_thread, NULL);
-        memset(kv_pairs_dht, 0, sizeof(struct kv_pair_dht) * MAX_LOCAL_PAIRS);
+    memset(kv_pairs_dht, 0, sizeof(struct kv_pair_dht) * MAX_LOCAL_PAIRS);
+	//pair_count = 0;
 
 	return pid;
 }
@@ -118,10 +133,9 @@ void dht_put(const char *key, long value)
 	hash_owner = hash(key);
 	struct kv_pair_dht send_pair;
 
-	if (hash_owner == pid)
+	if (hash_owner == getpid())
 	{
 		local_put(key, value);
-		pair_count++;
 	}
 	else
 	{
@@ -198,6 +212,6 @@ int hash(const char *name)
  */
 void dht_destroy(FILE *output)
 {
-	MPI_Finalize();
 	local_destroy(output);
+	MPI_Finalize();
 }
