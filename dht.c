@@ -23,7 +23,7 @@ int hash(const char *name);
 void *server_thread(void *ptr);
 
 // Variable declarations
-static int pid;    // current proccess id
+static int pid;	// current proccess id
 static int rank;   // current proccess rank
 static int nprocs; // number of mpi processes
 int hash_owner;	   // store result from hashing into table
@@ -51,19 +51,15 @@ static struct kv_pair_dht kv_pairs_dht[MAX_LOCAL_PAIRS];
  */
 void *server_thread(void *ptr)
 {
-	//pthreadcreate points to a looping MPI_Recv that needs to be created
-	//MPI_Recv (void *buf, int count, MPI_Datatype dtype, int src, int tag, MPI_Comm comm, MPI_Status *status)
-	//while(MPI_Recv(&recieve_key, sizeof, MPI_Byte, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status) == 0);
-	//case type 1 would be to call dht_put, except it would be local this time
-
 	MPI_Status status;
 	struct kv_pair_dht receive_pair;
+	long val;
 
 	while (alive)
 	{
 		printf("\npid = %d\n", getpid());
 		printf("Pre receive\n");
-		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
 		printf("Post receive\n");
 		printf("receive_pair.type = %d", receive_pair.type);
 
@@ -74,6 +70,8 @@ void *server_thread(void *ptr)
 				break;
 
 			case 2: // get
+				val = local_get(receive_pair.key);
+				MPI_Send(&val, sizeof(long), MPI_BYTE, hash_owner, 2, MPI_COMM_WORLD);
 				break;
 
 			case 3: // sync
@@ -145,7 +143,7 @@ void dht_put(const char *key, long value)
 		send_pair.type = 1;
 
 		printf("\nPre send\n");
-		MPI_Send (&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 0, MPI_COMM_WORLD);
+		MPI_Send(&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 0, MPI_COMM_WORLD);
 		printf("Post send\n");
 	}
 }
@@ -160,17 +158,29 @@ void dht_put(const char *key, long value)
 long dht_get(const char *key)
 {
 	hash_owner = hash(key);
-	if (hash_owner == pid)
-        {
+	struct kv_pair_dht receive_pair;
+	long val = -1;
+
+	if (hash_owner == getpid())
+	{
 		return local_get(key);
-        }
+	}
 	else
 	{
-
+		sprintf(receive_pair.key, "%s", key);
+		receive_pair.type = 2;
+		MPI_Send(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 0, MPI_COMM_WORLD);
+		MPI_Recv(&val, sizeof(long), MPI_BYTE, MPI_ANY_SOURCE, 2, MPI_COMM_WORLD, &status);
 	}
 
-	//placeholder
-	return local_get(key);
+	if(val == -1)
+	{
+		return KEY_NOT_FOUND;
+	}
+	else
+	{
+		return val;
+	}
 }
 
 /*
@@ -192,6 +202,7 @@ size_t dht_size()
  */
 void dht_sync()
 {
+
 }
 
 /*
