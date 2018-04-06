@@ -42,6 +42,8 @@ void *server_thread(void *ptr)
 	/// while();
 
 	//pthreadcreate points to a looping function that needs to be created
+
+	return 0;
 }
 
 /*
