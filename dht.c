@@ -34,7 +34,8 @@ bool alive = true;
 /*
  * Private module structure: holds data for a single key-value pair
  */
-struct kv_pair_dht {
+struct kv_pair_dht
+{
 	char key[MAX_KEYLEN];
 	long value;
 	int type;
@@ -62,7 +63,10 @@ void *server_thread(void *ptr)
 
 	while (alive)
 	{
+		printf("\nPre receive\n");
 		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+		printf("Post receive\n");
+		printf("receive_pair.type = %d" + receive_pair.type);
 
 		switch (receive_pair.type)
 		{
@@ -142,8 +146,10 @@ void dht_put(const char *key, long value)
 		sprintf(send_pair.key, "%s", key);
 		send_pair.value = value;
 		send_pair.type = 1;
-		MPI_Send (&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE,
-				hash_owner, 1, MPI_COMM_WORLD);
+
+		printf("\nPre send\n");
+		MPI_Send (&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 1, MPI_COMM_WORLD);
+		printf("Post send\n");
 	}
 }
 
