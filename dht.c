@@ -23,7 +23,7 @@ int hash(const char *name);
 void *server_thread(void *ptr);
 
 // Variable declarations
-static int pid;	// current proccess id
+//static int pid;    // current proccess id
 static int rank;   // current proccess rank
 static int nprocs; // number of mpi processes
 int hash_owner;	   // store result from hashing into table
@@ -157,6 +157,7 @@ void dht_put(const char *key, long value)
  */
 long dht_get(const char *key)
 {
+	MPI_Status status;
 	hash_owner = hash(key);
 	struct kv_pair_dht receive_pair;
 	long val = -1;
