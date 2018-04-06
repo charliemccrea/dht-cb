@@ -61,11 +61,15 @@ void *server_thread(void *ptr)
 	//MPI_Recv (void *buf, int count, MPI_Datatype dtype, int src, int tag, MPI_Comm comm, MPI_Status *status)
 	//while(MPI_Recv(&recieve_key, sizeof, MPI_Byte, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status) == 0);
 	//case type 1 would be to call dht_put, except it would be local this time
+
+	MPI_Status status;
+	struct kv_pair_dht receive_pair;
+
 	while (1)
 	{
-		if (MPI_Recv(&send_pair, sizeof(kv_pair_dht), MPI_Byte, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status) == 0)
+		if (MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status) == 0)
 		{
-			dht_put(send_pair.key, receieve_pair.value);
+			dht_put(receive_pair.key, receive_pair.value);
 		}
 	}
 }
@@ -112,6 +116,8 @@ void dht_put(const char *key, long value)
 	// if the pid is local, then keep it there, otherwise need to send it to the
 	// right process via point-to-point MPI communication
 	hash_owner = hash(key);
+	struct kv_pair_dht send_pair;
+
 	if (hash_owner == pid)
 	{
 		local_put(key, value);
@@ -119,11 +125,10 @@ void dht_put(const char *key, long value)
 	}
 	else
 	{
-		struct	kv_pair_dht send_pair;
-		sprintf(send_pair, "%s", key);
+		sprintf(send_pair.key, "%s", key);
 		send_pair.value = value;
 		send_pair.type = 1;
-		MPI_Send (&send_pair, sizeof(*kv_pair_dht), MPI_BYTE,
+		MPI_Send (&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE,
 				hash_owner, 1, MPI_COMM_WORLD);
 	}
 }
