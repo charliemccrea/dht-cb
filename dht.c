@@ -63,10 +63,11 @@ void *server_thread(void *ptr)
 
 	while (alive)
 	{
-		printf("\nPre receive\n");
+		printf("\npid = %d", getpid());
+		printf("Pre receive\n");
 		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
 		printf("Post receive\n");
-		printf("receive_pair.type = %d" + receive_pair.type);
+		printf("receive_pair.type = %d", receive_pair.type);
 
 		switch (receive_pair.type)
 		{
