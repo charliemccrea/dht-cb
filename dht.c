@@ -57,11 +57,7 @@ void *server_thread(void *ptr)
 	while(threads_online)
 	{
 		// Receive MPI sends to server thread
-		printf("\npid = %d\n", getpid());
-		printf("Pre receive\n");
 		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-		printf("Post receive\n");
-		printf("receive_pair.type = %d", receive_pair.type);
 
 		switch(receive_pair.type)
 		{
@@ -141,9 +137,7 @@ void dht_put(const char *key, long value)
 		send_pair.type = 1;
 
 		// MPI send to server thread
-		printf("\nPre send\n");
 		MPI_Send(&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 0, MPI_COMM_WORLD);
-		printf("Post send\n");
 	}
 }
 
