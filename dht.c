@@ -63,7 +63,7 @@ void *server_thread(void *ptr)
 	{
 		printf("\npid = %d\n", getpid());
 		printf("Pre receive\n");
-		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 		printf("Post receive\n");
 		printf("receive_pair.type = %d", receive_pair.type);
 
@@ -145,7 +145,7 @@ void dht_put(const char *key, long value)
 		send_pair.type = 1;
 
 		printf("\nPre send\n");
-		MPI_Send (&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 1, MPI_COMM_WORLD);
+		MPI_Send (&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 0, MPI_COMM_WORLD);
 		printf("Post send\n");
 	}
 }
