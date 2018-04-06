@@ -228,5 +228,6 @@ int hash(const char *name)
 void dht_destroy(FILE *output)
 {
 	local_destroy(output);
+	alive = false;
 	MPI_Finalize();
 }
