@@ -23,11 +23,10 @@ int hash(const char *name);
 void *server_thread(void *ptr);
 
 // Variable declarations
-//static int pid;    // current proccess id
 static int rank;   // current proccess rank
 static int nprocs; // number of mpi processes
 int hash_owner;	   // store result from hashing into table
-bool alive = true;
+bool threads_online = true;
 
 /*
  * Private module structure: holds data for a single key-value pair
@@ -55,15 +54,16 @@ void *server_thread(void *ptr)
 	struct kv_pair_dht receive_pair;
 	long val;
 
-	while (alive)
+	while(threads_online)
 	{
+		// Receive MPI sends to server thread
 		printf("\npid = %d\n", getpid());
 		printf("Pre receive\n");
 		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
 		printf("Post receive\n");
 		printf("receive_pair.type = %d", receive_pair.type);
 
-		switch (receive_pair.type)
+		switch(receive_pair.type)
 		{
 			case 1: // put
 				local_put(receive_pair.key, receive_pair.value);
@@ -71,6 +71,8 @@ void *server_thread(void *ptr)
 
 			case 2: // get
 				val = local_get(receive_pair.key);
+
+				// Send value back to dht_get
 				MPI_Send(&val, sizeof(long), MPI_BYTE, hash_owner, 2, MPI_COMM_WORLD);
 				break;
 
@@ -78,7 +80,7 @@ void *server_thread(void *ptr)
 				break;
 
 			case 4: // destroy
-				alive = false;
+				threads_online = false;
 				break;
 
 			default:
@@ -90,28 +92,27 @@ void *server_thread(void *ptr)
 }
 
 /*
- * Initialize a new hash table. Returns the current process ID (always zero in
- * the serial version)
- *
- * (In the parallel version, this should spawn the server thread.)
+ * Initialize a new hash table. Returns the current process ID. Spawns server thread.
  */
 int dht_init()
 {
 	int provided;
 	pthread_t thread;
 
+	// Initialize thread
 	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &provided);
-	if (provided != MPI_THREAD_MULTIPLE)
+	if(provided != MPI_THREAD_MULTIPLE)
 	{
 		printf("ERROR: Cannot initialize MPI in THREAD_MULTIPLE mode.\n");
 		exit(EXIT_FAILURE);
 	}
-
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
+	// Intialize hash table
 	if(rank == 0) memset(kv_pairs_dht, 0, sizeof(struct kv_pair_dht) * MAX_LOCAL_PAIRS);
 
+	// Create server threads
 	pthread_create(&thread, NULL, (void *)&server_thread, NULL);
 
 	return rank;
@@ -120,28 +121,26 @@ int dht_init()
 /*
  * Save a key-value association. If the key already exists, the associated value
  * is changed in the hash table. If the key does not already exist, a new pair
- * is created with the given value.
- *
- * (In the parallel version, this should perform point-to-point MPI
- * communication as necessary to complete the DHT operation.)
+ * is created with the given value. Perform MPI send to server thread.
  */
 void dht_put(const char *key, long value)
 {
-	// if the pid is local, then keep it there, otherwise need to send it to the
-	// right process via point-to-point MPI communication
 	hash_owner = hash(key);
 	struct kv_pair_dht send_pair;
 
-	if (hash_owner == getpid())
+	// If pid matches hash owner, make a local put
+	if(hash_owner == getpid())
 	{
 		local_put(key, value);
 	}
 	else
 	{
+		// Prepare pair struct
 		sprintf(send_pair.key, "%s", key);
 		send_pair.value = value;
 		send_pair.type = 1;
 
+		// MPI send to server thread
 		printf("\nPre send\n");
 		MPI_Send(&send_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 0, MPI_COMM_WORLD);
 		printf("Post send\n");
@@ -150,10 +149,8 @@ void dht_put(const char *key, long value)
 
 /*
  * Retrieve a value given a key. If the key is found, the resulting value is
- * returned. Otherwise, the function should return KEY_NOT_FOUND.
- *
- * (In the parallel version, this should perform point-to-point MPI
- * communication as necessary to complete the DHT operation.)
+ * returned. Otherwise, the function should return KEY_NOT_FOUND. Perform MPI send and receive
+ * to communicate with server thread.
  */
 long dht_get(const char *key)
 {
@@ -162,18 +159,25 @@ long dht_get(const char *key)
 	struct kv_pair_dht receive_pair;
 	long val = -1;
 
-	if (hash_owner == getpid())
+	// If pid matches hash owner, make a local get
+	if(hash_owner == getpid())
 	{
 		return local_get(key);
 	}
 	else
 	{
+		// Prepare pair struct
 		sprintf(receive_pair.key, "%s", key);
 		receive_pair.type = 2;
+
+		// MPI send to server thread
 		MPI_Send(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, hash_owner, 0, MPI_COMM_WORLD);
+
+		// MPI receive value
 		MPI_Recv(&val, sizeof(long), MPI_BYTE, MPI_ANY_SOURCE, 2, MPI_COMM_WORLD, &status);
 	}
 
+	// Return value
 	if(val == -1)
 	{
 		return KEY_NOT_FOUND;
@@ -186,9 +190,6 @@ long dht_get(const char *key)
 
 /*
  * Returns the total size of the DHT.
- *
- * (In the parallel version, this should perform MPI communication as necessary
- * to complete the DHT operation.)
  */
 size_t dht_size()
 {
@@ -198,8 +199,6 @@ size_t dht_size()
 /*
  * Synchronize all client processes involved in the DHT. This function should
  * not return until other all client processes have also called this function.
- *
- * (In the parallel version, this should essentially be a global barrier.)
  */
 void dht_sync()
 {
@@ -213,7 +212,7 @@ void dht_sync()
 int hash(const char *name)
 {
 	unsigned hash = 5381;
-	while (*name != '\0')
+	while(*name != '\0')
 	{
 		hash = ((hash << 5) + hash) + (unsigned)(*name++);
 	}
@@ -221,13 +220,11 @@ int hash(const char *name)
 }
 
 /*
- * Dump contents and clean up the hash table.
- *
- * (In the parallel version, this should terminate the server thread.)
+ * Dump contents and clean up the hash table. Terminate the server thread.
  */
 void dht_destroy(FILE *output)
 {
 	local_destroy(output);
-	alive = false;
+	threads_online = false;
 	MPI_Finalize();
 }
