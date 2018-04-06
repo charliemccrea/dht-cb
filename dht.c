@@ -22,13 +22,10 @@
 int hash(const char *name);
 void *server_thread(void *ptr);
 
-// Private module variable: current process ID
-static int pid;
-
-int mpi_rank; // identifier for mpi process
-int mpi_size; // total number of mpi processes
-int nprocs;   // number of mpi processes, not sure how diff from mpi_size...
-int hash_owner;	// store result from hashing into table
+// Variable declarations
+static int pid;    // current proccess id
+static int nprocs; // number of mpi processes
+int hash_owner;	   // store result from hashing into table
 bool alive = true;
 
 /*
@@ -63,7 +60,7 @@ void *server_thread(void *ptr)
 
 	while (alive)
 	{
-		printf("\npid = %d", getpid());
+		printf("\npid = %d\n", getpid());
 		printf("Pre receive\n");
 		MPI_Recv(&receive_pair, sizeof(struct kv_pair_dht), MPI_BYTE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
 		printf("Post receive\n");
@@ -111,14 +108,22 @@ int dht_init()
 		exit(EXIT_FAILURE);
 	}
 
-	MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &pid);
+	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
+	/*
 	pid = getpid();
-	if (pid == 0) local_init();
+	if (pid == 0)
+	{
+		local_init();
+	}
+	else
+	{
+		memset(kv_pairs_dht, 0, sizeof(struct kv_pair_dht) * MAX_LOCAL_PAIRS);
+	}
+	*/
+
 	pthread_create(&thread, NULL, (void *)&server_thread, NULL);
-    memset(kv_pairs_dht, 0, sizeof(struct kv_pair_dht) * MAX_LOCAL_PAIRS);
-	//pair_count = 0;
 
 	return pid;
 }
