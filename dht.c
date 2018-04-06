@@ -109,14 +109,14 @@ int dht_init()
 		exit(EXIT_FAILURE);
 	}
 
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_rank(MPI_COMM_WORLD, &pid);
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-	if(rank == 0) memset(kv_pairs_dht, 0, sizeof(struct kv_pair_dht) * MAX_LOCAL_PAIRS);
+	//if(rank == 0) memset(kv_pairs_dht, 0, sizeof(struct kv_pair_dht) * MAX_LOCAL_PAIRS);
 
 	pthread_create(&thread, NULL, (void *)&server_thread, NULL);
 
-	return getpid();
+	return pid();
 }
 
 /*
