@@ -116,7 +116,7 @@ int dht_init()
 
 	pthread_create(&thread, NULL, (void *)&server_thread, NULL);
 
-	return pid();
+	return pid;
 }
 
 /*
