@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include "dht.h"
+#define MAX_LOCAL_PAIRS 65536
 
 // Method declarations
 int hash(const char *name);
@@ -24,26 +25,49 @@ void *server_thread(void *ptr);
 // Private module variable: current process ID
 static int pid;
 
-// PThreads
-int remain;             // track number of remaining threads
-pthread_mutex_t mutex;  // global mutex
-pthread_cond_t condvar; // global condition variable
-
-// MPI
-int mpi_rank; // mpi process identifier
-int mpi_size; // mpi processes total
+int mpi_rank; // identifier for mpi process
+int mpi_size; // total number of mpi processes
 int nprocs;   // number of mpi processes, not sure how diff from mpi_size...
 
-// Other
 int hash_owner;	// store result from hashing into table
 
+/*
+ * Private module structure: holds data for a single key-value pair
+ */
+struct kv_pair_dht {
+	char key[MAX_KEYLEN];
+	long value;
+	int type;
+};
+
+/*
+ * Private module variable: array that stores all local key-value pairs
+ *
+ * NOTE: the pairs are stored lexicographically by key for cleaner output
+ */
+static struct kv_pair_dht kv_pairs_dht[MAX_LOCAL_PAIRS];
+
+/*
+ * Private module variable: current number of actual key-value pairs
+ */
+static size_t pair_count;
+
+/*
+ * Server thread
+ */
 void *server_thread(void *ptr)
 {
-	/// while();
-
-	//pthreadcreate points to a looping function that needs to be created
-
-	return 0;
+	//pthreadcreate points to a looping MPI_Recv that needs to be created
+	//MPI_Recv (void *buf, int count, MPI_Datatype dtype, int src, int tag, MPI_Comm comm, MPI_Status *status)
+	//while(MPI_Recv(&recieve_key, sizeof, MPI_Byte, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status) == 0);
+	//case type 1 would be to call dht_put, except it would be local this time
+	while (1)
+	{
+		if (MPI_Recv(&send_pair, sizeof(kv_pair_dht), MPI_Byte, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status) == 0)
+		{
+			dht_put(send_pair.key, receieve_pair.value);
+		}
+	}
 }
 
 /*
@@ -51,10 +75,6 @@ void *server_thread(void *ptr)
  * the serial version)
  *
  * (In the parallel version, this should spawn the server thread.)
- *
- * The server thread should execute a loop that waits for remote procedure call requests from  * other processes and delegates them to the appropriate local methods.
- * Each MPI process consists of two threads (client/main and server).
- * Because you are using threads in addition to MPI, you will want to initialize MPI using MP  * I_Init_thread() instead of MPI_Init()
  */
 int dht_init()
 {
@@ -74,6 +94,7 @@ int dht_init()
 	pid = getpid();
 	if (pid == 0) local_init();
 	pthread_create(&thread, NULL, (void *)&server_thread, NULL);
+        memset(kv_pairs_dht, 0, sizeof(struct kv_pair_dht) * MAX_LOCAL_PAIRS);
 
 	return pid;
 }
@@ -94,10 +115,16 @@ void dht_put(const char *key, long value)
 	if (hash_owner == pid)
 	{
 		local_put(key, value);
+		pair_count++;
 	}
 	else
 	{
-		//mpi send to appropriate process
+		struct	kv_pair_dht send_pair;
+		sprintf(send_pair, "%s", key);
+		send_pair.value = value;
+		send_pair.type = 1;
+		MPI_Send (&send_pair, sizeof(*kv_pair_dht), MPI_BYTE,
+				hash_owner, 1, MPI_COMM_WORLD);
 	}
 }
 
@@ -110,6 +137,17 @@ void dht_put(const char *key, long value)
  */
 long dht_get(const char *key)
 {
+	hash_owner = hash(key);
+	if (hash_owner == pid)
+        {
+		return local_get(key);
+        }
+	else
+	{
+
+	}
+
+	//placeholder
 	return local_get(key);
 }
 
@@ -132,29 +170,6 @@ size_t dht_size()
  */
 void dht_sync()
 {
-	/*
-	// initialization
-	pthread_mutex_init(&mutex, NULL);
-	pthread_cond_init(&condvar, NULL);
-
-	// lock mutex and ensure safety of variable remain
-	pthread_mutex_lock(&mutex);
-	remain--;
-
-	//last thread to enter wakes all sleeping threads
-	if (remain == 0)
-	{
-		pthread_cond_broadcast(&condvar);
-	}
-	else
-	{
-		while(remain != 0)
-		{
-			pthread_cond_wait(&condvar, &mutex);
-		}
-	}
-	pthread_mutex_unlock(&mutex);
-	*/
 }
 
 /*
